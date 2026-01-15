@@ -1,0 +1,141 @@
+{
+  "common": {
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "loading": "טוען...",
+    "error": "שגיאה",
+    "success": "בוצע בהצלחה",
+    "back": "חזרה",
+    "next": "הבא",
+    "finish": "סיום",
+    "search": "חיפוש",
+    "filter": "סינון",
+    "noResults": "לא נמצאו תוצאות",
+    "confirm": "אישור",
+    "yes": "כן",
+    "no": "לא"
+  },
+  "auth": {
+    "login": "התחברות",
+    "logout": "התנתקות",
+    "email": "אימייל",
+    "password": "סיסמה",
+    "forgotPassword": "שכחתי סיסמה",
+    "register": "הרשמה",
+    "welcomeBack": "ברוך הבא!",
+    "loginSubtitle": "התחבר לחשבון שלך",
+    "noAccount": "אין לך חשבון?",
+    "hasAccount": "כבר יש לך חשבון?",
+    "registerNow": "הירשם עכשיו",
+    "loginNow": "התחבר עכשיו"
+  },
+  "dashboard": {
+    "title": "לוח בקרה",
+    "clients": "לקוחות",
+    "newClient": "לקוח חדש",
+    "orders": "הזמנות",
+    "settings": "הגדרות",
+    "welcome": "שלום, {{name}}!",
+    "totalClients": "סה״כ לקוחות",
+    "pendingDesigns": "עיצובים בהמתנה",
+    "completedDesigns": "עיצובים שהושלמו"
+  },
+  "client": {
+    "name": "שם הלקוח",
+    "email": "אימייל",
+    "phone": "טלפון",
+    "eventDate": "תאריך האירוע",
+    "eventVenue": "מקום האירוע",
+    "createClient": "יצירת לקוח חדש",
+    "editClient": "עריכת לקוח",
+    "deleteClient": "מחיקת לקוח",
+    "deleteConfirm": "האם אתה בטוח שברצונך למחוק את הלקוח?",
+    "resetDesign": "איפוס עיצוב",
+    "resetConfirm": "האם אתה בטוח? פעולה זו תמחק את העיצוב הנוכחי ותאפשר ללקוח לעצב מחדש.",
+    "status": {
+      "open": "פתוח לעיצוב",
+      "in_progress": "בתהליך",
+      "submitted": "נשלח",
+      "archived": "בארכיון"
+    }
+  },
+  "editor": {
+    "title": "עורך העיצוב",
+    "saveAndCreateHeight": "שמור וצור גרסת גובה",
+    "finishAndSend": "סיום ושליחה",
+    "saving": "שומר...",
+    "saved": "נשמר",
+    "unsavedChanges": "יש שינויים שלא נשמרו",
+    "tools": {
+      "text": "טקסט",
+      "image": "תמונה",
+      "elements": "אלמנטים",
+      "background": "רקע",
+      "upload": "העלאה"
+    },
+    "properties": {
+      "position": "מיקום",
+      "size": "גודל",
+      "rotation": "סיבוב",
+      "opacity": "שקיפות",
+      "font": "גופן",
+      "fontSize": "גודל גופן",
+      "color": "צבע",
+      "align": "יישור",
+      "shadow": "צל",
+      "letterSpacing": "מרווח אותיות"
+    },
+    "layers": {
+      "title": "שכבות",
+      "bringForward": "קדימה",
+      "sendBackward": "אחורה",
+      "bringToFront": "לחזית",
+      "sendToBack": "לרקע"
+    },
+    "actions": {
+      "undo": "בטל",
+      "redo": "חזור",
+      "duplicate": "שכפל",
+      "delete": "מחק",
+      "alignLeft": "ישר לשמאל",
+      "alignCenter": "מרכז",
+      "alignRight": "ישר לימין"
+    }
+  },
+  "categories": {
+    "wedding": "חתונה",
+    "barBatMitzvah": "בר/בת מצווה",
+    "brit": "ברית",
+    "birthday": "יום הולדת",
+    "holidays": "חגים",
+    "business": "אירועים עסקיים",
+    "selectCategory": "בחר קטגוריה",
+    "selectTemplate": "בחר תבנית"
+  },
+  "templates": {
+    "title": "תבניות",
+    "width": "לרוחב",
+    "height": "לגובה",
+    "preview": "תצוגה מקדימה"
+  },
+  "clientPortal": {
+    "welcome": "ברוכים הבאים!",
+    "subtitle": "הגיע הזמן לעצב את המגנט שלכם",
+    "step1": "בחרו קטגוריה",
+    "step2": "בחרו תבנית",
+    "step3": "עצבו את המגנט לרוחב",
+    "step4": "התאימו את המגנט לגובה",
+    "step5": "שלחו את העיצוב",
+    "designLocked": "העיצוב שלכם נשלח בהצלחה!",
+    "designLockedSubtitle": "הצלם יצור איתכם קשר בקרוב"
+  },
+  "notifications": {
+    "designSubmitted": "העיצוב נשלח בהצלחה!",
+    "designSaved": "העיצוב נשמר",
+    "clientCreated": "הלקוח נוצר בהצלחה",
+    "emailSent": "האימייל נשלח בהצלחה",
+    "errorOccurred": "אירעה שגיאה, נסה שוב"
+  }
+}

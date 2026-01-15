@@ -1,0 +1,5 @@
+# Supabase Edge Functions - Deno runtime
+# These files use Deno imports (https:// URLs) and Deno APIs
+# VS Code may show errors but the code runs correctly on Supabase Edge Functions
+
+*.ts linguist-language=TypeScript

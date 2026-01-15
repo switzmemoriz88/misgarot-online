@@ -1,0 +1,42 @@
+{
+  "name": "misgarot-online-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.86.2",
+    "@types/jszip": "^3.4.0",
+    "@types/uuid": "^10.0.0",
+    "axios": "^1.6.2",
+    "i18next": "^23.7.6",
+    "i18next-browser-languagedetector": "^7.2.0",
+    "jspdf": "^3.0.4",
+    "jszip": "^3.10.1",
+    "konva": "^9.3.22",
+    "lucide-react": "^0.555.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.3.8",
+    "react-i18next": "^13.5.0",
+    "react-konva": "^18.2.14",
+    "react-router-dom": "^6.20.1",
+    "uuid": "^13.0.0",
+    "zustand": "^4.5.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.2",
+    "vite": "^5.0.6"
+  }
+}

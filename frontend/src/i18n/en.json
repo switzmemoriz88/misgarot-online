@@ -1,0 +1,141 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results found",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password",
+    "register": "Register",
+    "welcomeBack": "Welcome Back!",
+    "loginSubtitle": "Sign in to your account",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "registerNow": "Register now",
+    "loginNow": "Login now"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "clients": "Clients",
+    "newClient": "New Client",
+    "orders": "Orders",
+    "settings": "Settings",
+    "welcome": "Hello, {{name}}!",
+    "totalClients": "Total Clients",
+    "pendingDesigns": "Pending Designs",
+    "completedDesigns": "Completed Designs"
+  },
+  "client": {
+    "name": "Client Name",
+    "email": "Email",
+    "phone": "Phone",
+    "eventDate": "Event Date",
+    "eventVenue": "Event Venue",
+    "createClient": "Create New Client",
+    "editClient": "Edit Client",
+    "deleteClient": "Delete Client",
+    "deleteConfirm": "Are you sure you want to delete this client?",
+    "resetDesign": "Reset Design",
+    "resetConfirm": "Are you sure? This will delete the current design and allow the client to design again.",
+    "status": {
+      "open": "Open for Design",
+      "in_progress": "In Progress",
+      "submitted": "Submitted",
+      "archived": "Archived"
+    }
+  },
+  "editor": {
+    "title": "Design Editor",
+    "saveAndCreateHeight": "Save & Create Height Version",
+    "finishAndSend": "Finish & Send",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "unsavedChanges": "Unsaved changes",
+    "tools": {
+      "text": "Text",
+      "image": "Image",
+      "elements": "Elements",
+      "background": "Background",
+      "upload": "Upload"
+    },
+    "properties": {
+      "position": "Position",
+      "size": "Size",
+      "rotation": "Rotation",
+      "opacity": "Opacity",
+      "font": "Font",
+      "fontSize": "Font Size",
+      "color": "Color",
+      "align": "Align",
+      "shadow": "Shadow",
+      "letterSpacing": "Letter Spacing"
+    },
+    "layers": {
+      "title": "Layers",
+      "bringForward": "Bring Forward",
+      "sendBackward": "Send Backward",
+      "bringToFront": "Bring to Front",
+      "sendToBack": "Send to Back"
+    },
+    "actions": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "alignLeft": "Align Left",
+      "alignCenter": "Center",
+      "alignRight": "Align Right"
+    }
+  },
+  "categories": {
+    "wedding": "Wedding",
+    "barBatMitzvah": "Bar/Bat Mitzvah",
+    "brit": "Brit",
+    "birthday": "Birthday",
+    "holidays": "Holidays",
+    "business": "Business Events",
+    "selectCategory": "Select Category",
+    "selectTemplate": "Select Template"
+  },
+  "templates": {
+    "title": "Templates",
+    "width": "Landscape",
+    "height": "Portrait",
+    "preview": "Preview"
+  },
+  "clientPortal": {
+    "welcome": "Welcome!",
+    "subtitle": "It's time to design your magnet",
+    "step1": "Choose a category",
+    "step2": "Choose a template",
+    "step3": "Design your landscape magnet",
+    "step4": "Adjust your portrait magnet",
+    "step5": "Submit your design",
+    "designLocked": "Your design has been submitted!",
+    "designLockedSubtitle": "The photographer will contact you soon"
+  },
+  "notifications": {
+    "designSubmitted": "Design submitted successfully!",
+    "designSaved": "Design saved",
+    "clientCreated": "Client created successfully",
+    "emailSent": "Email sent successfully",
+    "errorOccurred": "An error occurred, please try again"
+  }
+}
