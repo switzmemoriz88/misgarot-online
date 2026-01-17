@@ -40,8 +40,9 @@ const EditorPage: React.FC = () => {
   
   // זיהוי מצב העורך לפי הנתיב
   const getEditorMode = (): EditorMode => {
-    if (location.pathname.includes('/landscape/')) return 'landscape';
-    if (location.pathname.includes('/portrait/')) return 'portrait';
+    // Check for both /landscape/ (with ID) and /landscape (without ID, using query params)
+    if (location.pathname.includes('/landscape')) return 'landscape';
+    if (location.pathname.includes('/portrait')) return 'portrait';
     return 'custom';
   };
   
@@ -106,18 +107,43 @@ const EditorPage: React.FC = () => {
     },
   });
 
-  // Check for saved data on mount (skip for admin edit mode)
+  // Check for saved data on mount (skip for admin edit mode and Supabase frames)
   useEffect(() => {
-    // Skip restore prompt when admin is editing an existing frame
-    if (isAdminEdit) return;
+    console.log('🔍 Restore prompt check:', { isAdminEdit, sourceFromUrl, templateId, frameIdFromUrl });
     
+    // Skip restore prompt when admin is editing an existing frame
+    if (isAdminEdit) {
+      console.log('⏭️ Skipping restore prompt - admin edit');
+      return;
+    }
+    
+    // Skip restore prompt when loading a frame from Supabase (gallery selection)
+    if (sourceFromUrl === 'supabase') {
+      console.log('⏭️ Skipping restore prompt - loading from Supabase');
+      return;
+    }
+    
+    // Skip restore prompt when switching between landscape/portrait modes
+    // (templateId indicates we're in a design session)
+    if (templateId) {
+      console.log('⏭️ Skipping restore prompt - in design session, templateId:', templateId);
+      return;
+    }
+    
+    // Skip if URL has frameId (coming from gallery or switching modes)
+    if (frameIdFromUrl) {
+      console.log('⏭️ Skipping restore prompt - has frameId');
+      return;
+    }
+    
+    console.log('⚠️ Showing restore prompt - no skip conditions met');
     if (hasSavedData()) {
       const info = getSavedInfo();
       if (info && info.elementCount > 0) {
         setShowRestorePrompt(true);
       }
     }
-  }, [hasSavedData, getSavedInfo, isAdminEdit]);
+  }, [hasSavedData, getSavedInfo, isAdminEdit, sourceFromUrl, templateId, frameIdFromUrl]);
 
   // Listen for Ctrl+S save event
   useEffect(() => {
@@ -291,6 +317,24 @@ const EditorPage: React.FC = () => {
 
   // Load frame template when entering editor
   useEffect(() => {
+    // Skip if loading from Supabase - let the Supabase effect handle it
+    if (sourceFromUrl === 'supabase') {
+      console.log('⏭️ Skipping session load - will load from Supabase');
+      // Clear any old session data to avoid conflicts
+      clearSession();
+      clearCanvas();
+      clear(); // Clear AutoSave data too
+      if (editorMode === 'landscape') {
+        setCanvasSize(CANVAS_SIZES.landscape.width, CANVAS_SIZES.landscape.height);
+        console.log('📐 Set canvas to LANDSCAPE:', CANVAS_SIZES.landscape.width, 'x', CANVAS_SIZES.landscape.height);
+      } else if (editorMode === 'portrait') {
+        setCanvasSize(CANVAS_SIZES.portrait.width, CANVAS_SIZES.portrait.height);
+        console.log('📐 Set canvas to PORTRAIT:', CANVAS_SIZES.portrait.width, 'x', CANVAS_SIZES.portrait.height);
+      }
+      setBackgroundType('none');
+      return;
+    }
+    
     if (editorMode === 'landscape') {
       setCanvasSize(CANVAS_SIZES.landscape.width, CANVAS_SIZES.landscape.height);
       setBackgroundType('none');
@@ -455,7 +499,7 @@ const EditorPage: React.FC = () => {
       
       loadPortraitMode();
     }
-  }, [templateId, editorMode, setCanvasSize, setBackgroundType, addElement, clearCanvas, getPortraitDesign]);
+  }, [templateId, editorMode, setCanvasSize, setBackgroundType, addElement, clearCanvas, getPortraitDesign, sourceFromUrl, getLandscapeDesign, clearSession, clear]);
 
   // Load frame from Supabase if source=supabase
   // This is for CUSTOMERS selecting a frame to customize
@@ -469,10 +513,11 @@ const EditorPage: React.FC = () => {
       
       try {
         console.log('📥 Loading frame from Supabase:', frameIdFromUrl);
+        console.log('📥 Current editor mode:', editorMode);
         
         // Load the selected frame
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: frame, error } = await (supabase as any)
+        let { data: frame, error } = await (supabase as any)
           .from('frames')
           .select('*')
           .eq('id', frameIdFromUrl)
@@ -483,9 +528,47 @@ const EditorPage: React.FC = () => {
           return;
         }
         
-        if (frame && frame.design_data) {
-          console.log('✅ Frame loaded:', frame.name, 'orientation:', frame.orientation);
+        console.log('✅ Initial frame loaded:', frame.name);
+        console.log('   - DB orientation:', frame.orientation);
+        console.log('   - Has paired_frame_id:', frame.paired_frame_id || 'none');
+        
+        // IMPORTANT: If we're in landscape mode but loaded a portrait frame,
+        // we need to load its paired landscape frame instead
+        if (editorMode === 'landscape' && frame.orientation === 'portrait' && frame.paired_frame_id) {
+          console.log('🔄 Switching to paired landscape frame...');
+          const { data: landscapeFrame, error: lsError } = await (supabase as any)
+            .from('frames')
+            .select('*')
+            .eq('id', frame.paired_frame_id)
+            .single();
           
+          if (!lsError && landscapeFrame) {
+            // Keep reference to portrait for later
+            const portraitFrame = frame;
+            frame = landscapeFrame;
+            frame._pairedPortrait = portraitFrame; // Store for portrait mode
+            console.log('✅ Loaded paired landscape frame:', frame.name);
+          }
+        }
+        
+        // Similarly for portrait mode with landscape frame
+        if (editorMode === 'portrait' && frame.orientation === 'landscape' && frame.paired_frame_id) {
+          console.log('🔄 Switching to paired portrait frame...');
+          const { data: portraitFrame, error: ptError } = await (supabase as any)
+            .from('frames')
+            .select('*')
+            .eq('id', frame.paired_frame_id)
+            .single();
+          
+          if (!ptError && portraitFrame) {
+            const landscapeFrame = frame;
+            frame = portraitFrame;
+            frame._pairedLandscape = landscapeFrame;
+            console.log('✅ Loaded paired portrait frame:', frame.name);
+          }
+        }
+        
+        if (frame && frame.design_data) {
           // Clear current canvas and session
           clearCanvas();
           clearSession();
@@ -494,12 +577,10 @@ const EditorPage: React.FC = () => {
           const landscapeSize = { width: 2500, height: 1875 };
           const portraitSize = { width: 1875, height: 2500 };
           
-          // Set canvas size for current mode
-          if (editorMode === 'landscape') {
-            setCanvasSize(landscapeSize.width, landscapeSize.height);
-          } else if (editorMode === 'portrait') {
-            setCanvasSize(portraitSize.width, portraitSize.height);
-          }
+          // Set canvas size based on current editor mode (from URL)
+          const currentSize = editorMode === 'portrait' ? portraitSize : landscapeSize;
+          setCanvasSize(currentSize.width, currentSize.height);
+          console.log('📐 Canvas size set to:', currentSize.width, 'x', currentSize.height);
           
           // Set background
           if (designData.backgroundType) {
@@ -513,29 +594,106 @@ const EditorPage: React.FC = () => {
           }
           
           // Prepare elements - separate locked (frame) and unlocked (editable)
-          const frameElements = designData.elements?.filter((el: any) => el.isLocked) || [];
-          const editableElements = designData.elements?.filter((el: any) => !el.isLocked) || [];
+          const allElements = designData.elements || [];
           
-          console.log(`📦 Frame elements (locked): ${frameElements.length}`);
-          console.log(`📦 Editable elements: ${editableElements.length}`);
+          // Determine frame orientation based on stored data or aspect ratio
+          // A landscape frame has width > height in its design
+          const frameOrientation = frame.orientation || 'landscape';
+          const isLandscapeFrame = frameOrientation === 'landscape';
+          console.log('🔍 Frame orientation:', frameOrientation, '-> isLandscapeFrame:', isLandscapeFrame);
           
-          // Check if we have a paired portrait frame
+          // Function to scale frame image to fill canvas
+          const scaleFrameToCanvas = (el: any, targetSize: { width: number; height: number }) => {
+            if (el.type === 'image') {
+              console.log(`   🖼️ Scaling frame image to ${targetSize.width}x${targetSize.height}`);
+              // Scale frame image to fill entire canvas and mark as locked
+              return {
+                ...el,
+                x: 0,
+                y: 0,
+                width: targetSize.width,
+                height: targetSize.height,
+                scaleX: 1,
+                scaleY: 1,
+                isLocked: true, // Ensure frame images are locked
+              };
+            }
+            return el;
+          };
+          
+          // Mark frame elements: images are locked (the frame graphic), text is editable
+          // This handles cases where isLocked wasn't set during frame creation
+          const markFrameElements = (el: any) => {
+            // Images in frame data are the frame graphic - always locked
+            if (el.type === 'image') {
+              return { ...el, isLocked: true };
+            }
+            // Text elements are editable by users (unless explicitly locked)
+            return { ...el, isLocked: el.isLocked || false };
+          };
+          
+          const processedElements = allElements.map(markFrameElements);
+          
+          // Get landscape and portrait frame elements
+          let landscapeFrameElements: any[] = [];
           let portraitFrameElements: any[] = [];
-          if (frame.paired_frame_id) {
-            // Load the portrait frame
-            const { data: portraitFrame } = await (supabase as any)
-              .from('frames')
-              .select('design_data')
-              .eq('id', frame.paired_frame_id)
-              .single();
+          let editableElements: any[] = [];
+          
+          if (isLandscapeFrame) {
+            // This is a landscape frame - separate locked (frame graphics) and editable
+            landscapeFrameElements = processedElements
+              .filter((el: any) => el.isLocked)
+              .map((el: any) => scaleFrameToCanvas(el, landscapeSize));
+            editableElements = processedElements.filter((el: any) => !el.isLocked);
             
-            if (portraitFrame?.design_data?.elements) {
-              portraitFrameElements = portraitFrame.design_data.elements.filter((el: any) => el.isLocked);
-              console.log(`✅ Loaded paired portrait frame: ${portraitFrameElements.length} elements`);
+            console.log(`📦 After processing: ${landscapeFrameElements.length} locked, ${editableElements.length} editable`);
+            
+            // Load portrait frame if paired
+            if (frame.paired_frame_id) {
+              const { data: portraitFrame } = await (supabase as any)
+                .from('frames')
+                .select('design_data')
+                .eq('id', frame.paired_frame_id)
+                .single();
+              
+              if (portraitFrame?.design_data?.elements) {
+                const portraitProcessed = portraitFrame.design_data.elements.map(markFrameElements);
+                portraitFrameElements = portraitProcessed
+                  .filter((el: any) => el.isLocked)
+                  .map((el: any) => scaleFrameToCanvas(el, portraitSize));
+                console.log(`✅ Loaded paired portrait frame: ${portraitFrameElements.length} elements`);
+              }
+            }
+          } else {
+            // This is a portrait frame - need to find/load the landscape pair
+            portraitFrameElements = processedElements
+              .filter((el: any) => el.isLocked)
+              .map((el: any) => scaleFrameToCanvas(el, portraitSize));
+            editableElements = processedElements.filter((el: any) => !el.isLocked);
+            
+            // Load landscape frame if paired
+            if (frame.paired_frame_id) {
+              const { data: landscapeFrame } = await (supabase as any)
+                .from('frames')
+                .select('design_data')
+                .eq('id', frame.paired_frame_id)
+                .single();
+              
+              if (landscapeFrame?.design_data?.elements) {
+                const landscapeProcessed = landscapeFrame.design_data.elements.map(markFrameElements);
+                landscapeFrameElements = landscapeProcessed
+                  .filter((el: any) => el.isLocked)
+                  .map((el: any) => scaleFrameToCanvas(el, landscapeSize));
+                console.log(`✅ Loaded paired landscape frame: ${landscapeFrameElements.length} elements`);
+              }
             }
           }
           
-          // If no paired portrait, calculate portrait positions from landscape
+          console.log(`📦 Landscape frame elements: ${landscapeFrameElements.length}`);
+          console.log(`📦 Portrait frame elements: ${portraitFrameElements.length}`);
+          console.log(`📦 Editable elements: ${editableElements.length}`);
+          
+          // Calculate portrait positions for editable elements from landscape
           const portraitEditableElements = calculatePortraitFromLandscape(
             editableElements,
             landscapeSize,
@@ -553,22 +711,32 @@ const EditorPage: React.FC = () => {
           };
           
           // Save landscape design (frame + editable elements)
-          const landscapeAllElements = [...frameElements, ...editableElements];
+          const landscapeAllElements = [...landscapeFrameElements, ...editableElements];
           saveLandscapeDesign(landscapeAllElements, style, landscapeSize);
           
-          // Save portrait design (portrait frame if exists + calculated editable elements)
+          // Save portrait design (portrait frame + calculated editable elements)
           const portraitAllElements = [...portraitFrameElements, ...portraitEditableElements];
           savePortraitDesign(portraitAllElements, style, portraitSize);
           
           // Add elements to current canvas based on mode
           const currentElements = editorMode === 'landscape' ? landscapeAllElements : portraitAllElements;
-          currentElements.forEach((el: any) => {
+          console.log(`🎨 Adding ${currentElements.length} elements for ${editorMode} mode`);
+          
+          currentElements.forEach((el: any, index: number) => {
+            console.log(`   [${index}] ${el.type}: locked=${el.isLocked}, x=${el.x}, y=${el.y}, w=${el.width}, h=${el.height}`);
             addElement({
               ...el,
               // Admin can edit everything, customers respect lock status
               isLocked: isAdminEdit ? false : (el.isLocked === true),
             });
           });
+          
+          // FORCE canvas size after adding elements (to prevent other effects from overriding)
+          setTimeout(() => {
+            const finalSize = editorMode === 'landscape' ? landscapeSize : portraitSize;
+            setCanvasSize(finalSize.width, finalSize.height);
+            console.log('📐 FORCED canvas size to:', finalSize.width, 'x', finalSize.height);
+          }, 100);
           
           console.log(`✅ Dual-mode design ready:`);
           console.log(`   Landscape: ${landscapeAllElements.length} elements`);
@@ -675,11 +843,15 @@ const EditorPage: React.FC = () => {
     console.log('📦 Total elements:', elements.length);
     console.log('📦 Non-locked elements for portrait:', elementsForPortrait.length);
     
+    // Use fixed sizes - don't rely on current canvas dimensions
+    const LANDSCAPE_SIZE = { width: 2500, height: 1875 };
+    const PORTRAIT_SIZE = { width: 1875, height: 2500 };
+    
     // Save FULL landscape design for publishing later
     const landscapeDesignData = {
       elements: elements, // All elements including locked
-      canvasWidth,
-      canvasHeight,
+      canvasWidth: LANDSCAPE_SIZE.width,
+      canvasHeight: LANDSCAPE_SIZE.height,
       backgroundColor,
       backgroundType,
       gradientColors,
@@ -696,7 +868,7 @@ const EditorPage: React.FC = () => {
       gradientEnd: gradientColors.end,
       gradientAngle: gradientColors.angle,
       frameId: templateId,
-    }, { width: canvasWidth, height: canvasHeight });
+    }, LANDSCAPE_SIZE);
     
     // Check if we already have a portrait design saved
     const existingPortrait = getPortraitDesign();
@@ -706,13 +878,10 @@ const EditorPage: React.FC = () => {
     
     if (!existingPortrait || existingPortrait.elements.length === 0) {
       // First time going to portrait - calculate positions from landscape
-      const portraitSize = { width: 1875, height: 2500 }; // Portrait dimensions
-      const landscapeSize = { width: canvasWidth, height: canvasHeight };
-      
       const calculatedPortraitElements = calculatePortraitFromLandscape(
         elementsForPortrait,
-        landscapeSize,
-        portraitSize
+        LANDSCAPE_SIZE,
+        PORTRAIT_SIZE
       );
       
       // Save calculated portrait elements
@@ -723,7 +892,7 @@ const EditorPage: React.FC = () => {
         gradientEnd: gradientColors.end,
         gradientAngle: gradientColors.angle,
         frameId: templateId,
-      }, portraitSize);
+      }, PORTRAIT_SIZE);
       
       console.log('✅ Created new portrait layout with', calculatedPortraitElements.length, 'elements');
     } else {
@@ -772,6 +941,9 @@ const EditorPage: React.FC = () => {
   const handleBackToLandscape = () => {
     console.log('🔙 Going back to landscape');
     
+    // Use fixed sizes
+    const PORTRAIT_SIZE = { width: 1875, height: 2500 };
+    
     // Separate locked (frame) and unlocked (user) elements
     const lockedElements = elements.filter(el => el.isLocked);
     const userElements = elements.filter(el => !el.isLocked);
@@ -786,7 +958,7 @@ const EditorPage: React.FC = () => {
       gradientEnd: gradientColors.end,
       gradientAngle: gradientColors.angle,
       frameId: templateId,
-    }, { width: canvasWidth, height: canvasHeight });
+    }, PORTRAIT_SIZE);
     
     console.log('💾 Saved portrait design:');
     console.log(`   - Locked elements (frame): ${lockedElements.length}`);

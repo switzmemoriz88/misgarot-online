@@ -76,101 +76,122 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log('🔍 AuthContext: Fetching profile for user ID:', authUser.id);
     console.log('🔍 AuthContext: User email:', authUser.email);
 
-    // Try to get profile by ID first
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let profileData: any = null;
-    
-    const { data: profileById, error: idError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single();
-
-    if (!idError && profileById) {
-      profileData = profileById;
-    } else {
-      // If not found by ID, try by email
-      console.log('⚠️ AuthContext: Profile not found by ID, trying email...');
-      const { data: profileByEmail, error: emailError } = await supabase
+    try {
+      // Simple query - just get by email (more reliable)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: profileData, error } = await (supabase as any)
         .from('users')
         .select('*')
         .eq('email', authUser.email || '')
         .single();
 
-      if (!emailError && profileByEmail) {
-        profileData = profileByEmail;
-
-        // If found by email but ID doesn't match, update the ID in the database
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((profileByEmail as any).id !== authUser.id) {
-          console.log('🔧 AuthContext: Updating user ID in database to match auth...');
+      if (error) {
+        console.error('❌ AuthContext: Error fetching profile:', error.message);
+        // Try to create profile if not found
+        if (error.code === 'PGRST116') {
+          console.log('⚠️ AuthContext: Profile not found, creating new one...');
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: updateError } = await (supabase as any)
+          const { data: newProfile, error: createError } = await (supabase as any)
             .from('users')
-            .update({ id: authUser.id })
-            .eq('email', authUser.email || '');
-          
-          if (updateError) {
-            console.error('❌ AuthContext: Failed to update user ID:', updateError);
-          } else {
-            console.log('✅ AuthContext: User ID updated successfully');
-          }
-        }
-      }
-    }
+            .insert({
+              id: authUser.id,
+              email: authUser.email,
+              name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+              role: 'photographer',
+              subscription_plan: 'free',
+              is_active: true,
+            })
+            .select()
+            .single();
 
-    if (!profileData) {
-      console.error('❌ AuthContext: Profile not found');
+          if (createError) {
+            console.error('❌ AuthContext: Failed to create profile:', createError.message);
+            return null;
+          }
+
+          console.log('✅ AuthContext: New profile created');
+          return newProfile as UserProfile;
+        }
+        return null;
+      }
+
+      if (profileData) {
+        console.log('✅ AuthContext: Profile loaded:', profileData.name, profileData.role);
+        return profileData as UserProfile;
+      }
+
+      return null;
+    } catch (err) {
+      console.error('❌ AuthContext: fetchProfile error:', err);
       return null;
     }
-
-    console.log('✅ AuthContext: Profile loaded:', profileData);
-    console.log('✅ AuthContext: User role:', profileData?.role);
-
-    return profileData as UserProfile;
   }, []);
 
   // ==========================================
   // Initialize - Check existing session
   // ==========================================
   useEffect(() => {
+    let isMounted = true;
+    
     const initAuth = async () => {
       const supabase = getSupabase();
       if (!supabase) {
         console.warn('⚠️ AuthContext: Supabase not configured');
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
         return;
       }
 
       console.log('🚀 AuthContext: Initializing...');
 
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        console.log('✅ AuthContext: Found existing session');
-        setUser(session.user);
-        const userProfile = await fetchProfile(session.user);
-        setProfile(userProfile);
-      } else {
-        console.log('ℹ️ AuthContext: No existing session');
-      }
+      try {
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise<null>((resolve) => {
+          setTimeout(() => {
+            console.warn('⚠️ AuthContext: Session check timeout');
+            resolve(null);
+          }, 10000); // 10 second timeout
+        });
 
-      setIsLoading(false);
+        // Get current session
+        const sessionPromise = supabase.auth.getSession();
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        // If timed out, result will be null
+        const session = result && 'data' in result ? result.data.session : null;
+        
+        if (session?.user) {
+          console.log('✅ AuthContext: Found existing session');
+          if (isMounted) {
+            setUser(session.user);
+            const userProfile = await fetchProfile(session.user);
+            setProfile(userProfile);
+          }
+        } else {
+          console.log('ℹ️ AuthContext: No existing session');
+        }
+      } catch (error) {
+        console.error('❌ AuthContext: Error during initialization:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
 
       // Listen to auth changes
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔄 AuthContext: Auth state changed:', event);
 
         if (session?.user) {
-          setUser(session.user);
+          if (isMounted) setUser(session.user);
           if (event === 'SIGNED_IN') {
             const userProfile = await fetchProfile(session.user);
-            setProfile(userProfile);
+            if (isMounted) setProfile(userProfile);
           }
         } else {
-          setUser(null);
-          setProfile(null);
+          if (isMounted) {
+            setUser(null);
+            setProfile(null);
+          }
         }
       });
 
@@ -180,6 +201,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     initAuth();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [fetchProfile]);
 
   // ==========================================
@@ -188,20 +213,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const supabase = getSupabase();
     if (!supabase) {
+      console.error('❌ AuthContext: Supabase client is null');
       return { success: false, error: 'שגיאת חיבור למערכת' };
     }
 
     console.log('🔐 AuthContext: Login attempt for:', email);
+    console.log('🔐 AuthContext: Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
 
     try {
-      // Add timeout to prevent infinite loading
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('timeout')), 15000);
-      });
-
-      const loginPromise = supabase.auth.signInWithPassword({ email, password });
+      console.log('🔐 AuthContext: Calling signInWithPassword...');
+      const startTime = Date.now();
       
-      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as Awaited<typeof loginPromise>;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      console.log('🔐 AuthContext: Response received in', Date.now() - startTime, 'ms');
 
       if (error) {
         console.error('❌ AuthContext: Login error:', error.message);
@@ -223,12 +248,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return { success: true };
     } catch (err) {
-      console.error('❌ AuthContext: Login timeout or error:', err);
+      console.error('❌ AuthContext: Login error:', err);
       return { 
         success: false, 
-        error: err instanceof Error && err.message === 'timeout' 
-          ? 'תם הזמן - בדוק את החיבור לאינטרנט' 
-          : 'שגיאה בהתחברות' 
+        error: err instanceof Error ? err.message : 'שגיאה בהתחברות' 
       };
     }
   }, [fetchProfile]);

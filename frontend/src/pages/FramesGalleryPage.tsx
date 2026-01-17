@@ -103,12 +103,12 @@ const FramesGalleryPage: React.FC = () => {
         
         // Load from FRAMES table (admin uploaded frames)
         // Filter by category_id directly in DB query for better performance
+        // Show both landscape and portrait frames (will display landscape version)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let framesQuery = (supabase as any)
           .from('frames')
           .select('*, categories(id, name, name_en, slug)')
           .eq('is_active', true)
-          .eq('orientation', 'landscape')
           .order('created_at', { ascending: false });
         
         // Only filter by category_id if we found it
@@ -118,29 +118,15 @@ const FramesGalleryPage: React.FC = () => {
         
         const { data: framesData, error: framesError } = await framesQuery;
 
-        // Load from PUBLIC_FRAMES table (published from orders)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let publicQuery = (supabase as any)
-          .from('public_frames')
-          .select('*, categories(id, name, slug)')
-          .eq('is_active', true)
-          .order('published_at', { ascending: false });
-        
-        if (categoryUuid) {
-          publicQuery = publicQuery.eq('category_id', categoryUuid);
-        }
-        
-        const { data: publicFramesData, error: publicError } = await publicQuery;
+        // Skip public_frames - using only frames table for now
+        // If you need public_frames, create the table in Supabase first
+        const publicFramesData: any[] = [];
 
         if (framesError) {
           console.error('Error loading frames:', framesError);
         }
-        if (publicError) {
-          console.error('Error loading public frames:', publicError);
-        }
         
         console.log('📦 Frames from frames table (category ' + categoryName + '):', framesData?.length || 0);
-        console.log('📦 Frames from public_frames table (category ' + categoryName + '):', publicFramesData?.length || 0);
         
         const allDbFrames: DisplayFrame[] = [];
         
