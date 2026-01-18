@@ -1356,15 +1356,34 @@ const EditorPage: React.FC = () => {
     // LANDSCAPE MODE PUBLISH - יוצר גם portrait אוטומטית
     // ==========================================
     if (editorMode === 'landscape') {
-      console.log('� Publishing from LANDSCAPE mode');
+      console.log('📏 Publishing from LANDSCAPE mode');
+      
+      // Normalize locked elements (frames) to fill the canvas
+      // This ensures frames are saved at exactly canvas size regardless of how they were uploaded
+      const normalizedElements = elements.map(el => {
+        if (el.isLocked && el.type === 'image') {
+          // Locked images (frames) should fill the canvas
+          console.log(`   🖼️ Normalizing frame "${el.name}" to ${canvasWidth}x${canvasHeight}`);
+          return {
+            ...el,
+            x: 0,
+            y: 0,
+            width: canvasWidth,
+            height: canvasHeight,
+            scaleX: 1,
+            scaleY: 1,
+          };
+        }
+        return el;
+      });
       
       // Extract only locked elements for portrait (the frame itself)
-      const lockedElements = elements.filter(el => el.isLocked);
+      const lockedElements = normalizedElements.filter(el => el.isLocked);
       console.log('🔒 Locked elements for portrait:', lockedElements.length);
       
-      // Full landscape design data (all elements)
+      // Full landscape design data (all elements - normalized)
       const landscapeDesignData = {
-        elements,
+        elements: normalizedElements,
         canvasWidth,
         canvasHeight,
         backgroundColor,
@@ -1373,21 +1392,37 @@ const EditorPage: React.FC = () => {
       };
 
       // Portrait design data - only locked elements (the frame)
-      // Calculate portrait positions for locked elements
+      // Frames should fill the portrait canvas entirely
       const portraitWidth = 1875;
       const portraitHeight = 2500;
-      const scaleX = portraitWidth / canvasWidth;
-      const scaleY = portraitHeight / canvasHeight;
-      const avgScale = (scaleX + scaleY) / 2;
       
-      const portraitElements = lockedElements.map(el => ({
-        ...el,
-        x: (el.x || 0) * scaleX,
-        y: (el.y || 0) * scaleY,
-        width: el.width ? el.width * avgScale : undefined,
-        height: el.height ? el.height * avgScale : undefined,
-        fontSize: el.type === 'text' && el.fontSize ? Math.round(el.fontSize * avgScale) : undefined,
-      }));
+      // For locked images (frames), just set to canvas size. For text, scale proportionally.
+      const portraitElements = lockedElements.map(el => {
+        if (el.type === 'image') {
+          // Frame images fill the portrait canvas
+          return {
+            ...el,
+            x: 0,
+            y: 0,
+            width: portraitWidth,
+            height: portraitHeight,
+            scaleX: 1,
+            scaleY: 1,
+          };
+        }
+        // Text/other elements - scale proportionally
+        const scaleX = portraitWidth / canvasWidth;
+        const scaleY = portraitHeight / canvasHeight;
+        const avgScale = (scaleX + scaleY) / 2;
+        return {
+          ...el,
+          x: (el.x || 0) * scaleX,
+          y: (el.y || 0) * scaleY,
+          width: el.width ? el.width * avgScale : undefined,
+          height: el.height ? el.height * avgScale : undefined,
+          fontSize: el.type === 'text' && el.fontSize ? Math.round(el.fontSize * avgScale) : undefined,
+        };
+      });
       
       const portraitDesignData = {
         elements: portraitElements,
@@ -1480,13 +1515,32 @@ const EditorPage: React.FC = () => {
     console.log('📏 Publishing from PORTRAIT mode');
     console.log('📋 Data received:', { name: data.name, categoryId: data.categoryId, orientation: data.orientation });
     
+    // Normalize locked elements (frames) to fill the canvas
+    // This ensures frames are saved at exactly canvas size regardless of how they were uploaded
+    const normalizedElements = elements.map(el => {
+      if (el.isLocked && el.type === 'image') {
+        // Locked images (frames) should fill the canvas
+        console.log(`   🖼️ Normalizing frame "${el.name}" to ${canvasWidth}x${canvasHeight}`);
+        return {
+          ...el,
+          x: 0,
+          y: 0,
+          width: canvasWidth,
+          height: canvasHeight,
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+      return el;
+    });
+    
     // Extract only locked elements for landscape (the frame itself)
-    const lockedElements = elements.filter(el => el.isLocked);
+    const lockedElements = normalizedElements.filter(el => el.isLocked);
     console.log('🔒 Locked elements for landscape:', lockedElements.length);
     
-    // Full portrait design data (all elements)
+    // Full portrait design data (all elements - normalized)
     const portraitDesignData = {
-      elements,
+      elements: normalizedElements,
       canvasWidth,
       canvasHeight,
       backgroundColor,
@@ -1494,24 +1548,40 @@ const EditorPage: React.FC = () => {
       gradientColors,
     };
     
-    console.log('📦 Portrait design data prepared, elements count:', elements.length);
+    console.log('📦 Portrait design data prepared, elements count:', normalizedElements.length);
 
     // Landscape design data - only locked elements (the frame)
-    // Calculate landscape positions for locked elements
+    // Frames should fill the landscape canvas entirely
     const landscapeWidth = 2500;
     const landscapeHeight = 1875;
-    const scaleX = landscapeWidth / canvasWidth;
-    const scaleY = landscapeHeight / canvasHeight;
-    const avgScale = (scaleX + scaleY) / 2;
     
-    const landscapeElements = lockedElements.map(el => ({
-      ...el,
-      x: (el.x || 0) * scaleX,
-      y: (el.y || 0) * scaleY,
-      width: el.width ? el.width * avgScale : undefined,
-      height: el.height ? el.height * avgScale : undefined,
-      fontSize: el.type === 'text' && el.fontSize ? Math.round(el.fontSize * avgScale) : undefined,
-    }));
+    // For locked images (frames), just set to canvas size. For text, scale proportionally.
+    const landscapeElements = lockedElements.map(el => {
+      if (el.type === 'image') {
+        // Frame images fill the landscape canvas
+        return {
+          ...el,
+          x: 0,
+          y: 0,
+          width: landscapeWidth,
+          height: landscapeHeight,
+          scaleX: 1,
+          scaleY: 1,
+        };
+      }
+      // Text/other elements - scale proportionally
+      const scaleX = landscapeWidth / canvasWidth;
+      const scaleY = landscapeHeight / canvasHeight;
+      const avgScale = (scaleX + scaleY) / 2;
+      return {
+        ...el,
+        x: (el.x || 0) * scaleX,
+        y: (el.y || 0) * scaleY,
+        width: el.width ? el.width * avgScale : undefined,
+        height: el.height ? el.height * avgScale : undefined,
+        fontSize: el.type === 'text' && el.fontSize ? Math.round(el.fontSize * avgScale) : undefined,
+      };
+    });
     
     const landscapeDesignData = {
       elements: landscapeElements,
