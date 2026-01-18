@@ -23,8 +23,15 @@ const LoginPage = () => {
 
   // Auto-redirect if already logged in
   useEffect(() => {
+    console.log('🔄 LoginPage redirect check:', {
+      authLoading,
+      isAuthenticated,
+      hasProfile: !!profile,
+      profile: profile ? { id: profile.id, role: profile.role, email: profile.email } : null
+    });
+    
     if (!authLoading && isAuthenticated && profile) {
-      console.log('🔄 LoginPage: User authenticated, role:', profile.role);
+      console.log('✅ LoginPage: Redirecting user with role:', profile.role);
       
       // Route based on role
       if (profile.role === 'admin') {
@@ -93,7 +100,19 @@ const LoginPage = () => {
           setIsSubmitting(false);
           return;
         }
-        console.log('✅ LoginPage: Login successful, waiting for redirect...');
+        
+        console.log('✅ LoginPage: Login successful, profile:', result.profile?.role);
+        
+        // Direct redirect based on profile role
+        const userRole = result.profile?.role;
+        if (userRole === 'admin') {
+          navigate('/admin', { replace: true });
+        } else if (userRole === 'client') {
+          navigate('/client-portal', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+        return;
         
       } else if (mode === 'register') {
         const result = await authRegister(email, password, name);

@@ -35,6 +35,12 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+interface LoginResult {
+  success: boolean;
+  error?: string;
+  profile?: UserProfile | null;
+}
+
 interface AuthContextType {
   // State
   user: SupabaseUser | null;       // Supabase Auth user
@@ -45,7 +51,7 @@ interface AuthContextType {
   isStarred: boolean; // Can publish directly without admin approval
   
   // Actions
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -210,7 +216,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ==========================================
   // Login
   // ==========================================
-  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     const supabase = getSupabase();
     if (!supabase) {
       console.error('❌ AuthContext: Supabase client is null');
@@ -244,6 +250,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userProfile = await fetchProfile(data.user);
         setProfile(userProfile);
         console.log('✅ AuthContext: Profile set, role:', userProfile?.role);
+        return { success: true, profile: userProfile };
       }
 
       return { success: true };

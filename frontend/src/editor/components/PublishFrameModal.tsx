@@ -230,10 +230,16 @@ export const PublishFrameModal: React.FC<PublishFrameModalProps> = ({
 
   // Load categories and unpaired frames
   useEffect(() => {
+    console.log('🔍 PublishFrameModal useEffect - isOpen:', isOpen);
     if (isOpen) {
       loadData();
     }
   }, [isOpen]);
+
+  // Also load on mount if already open
+  useEffect(() => {
+    console.log('🔍 PublishFrameModal mounted, currentOrientation:', currentOrientation);
+  }, [currentOrientation]);
 
   // Auto-translate when Hebrew name changes
   useEffect(() => {
@@ -263,21 +269,24 @@ export const PublishFrameModal: React.FC<PublishFrameModalProps> = ({
   ];
 
   const loadData = async () => {
-    console.log('📂 loadData called');
+    console.log('📂 loadData called - starting to load categories');
     const supabase = getSupabase();
     if (!supabase) {
-      console.error('❌ Supabase not configured');
+      console.error('❌ Supabase not configured - getSupabase() returned null');
       return;
     }
+    console.log('✅ Supabase client obtained');
 
-    // Load categories
-    const { data: categoriesData, error: catError } = await supabase
-      .from('categories')
-      .select('id, name, name_en')
-      .eq('is_active', true)
-      .order('sort_order');
+    try {
+      // Load categories
+      console.log('📁 Fetching categories from Supabase...');
+      const { data: categoriesData, error: catError } = await supabase
+        .from('categories')
+        .select('id, name, name_en')
+        .eq('is_active', true)
+        .order('sort_order');
 
-    console.log('📁 Categories loaded:', categoriesData, 'Error:', catError);
+      console.log('📁 Categories result:', { data: categoriesData, error: catError });
 
     let cats = categoriesData as Category[] | null;
     
@@ -335,6 +344,9 @@ export const PublishFrameModal: React.FC<PublishFrameModalProps> = ({
 
     if (framesData) {
       setUnpairedFrames(framesData as PairedFrame[]);
+    }
+    } catch (error) {
+      console.error('❌ Error loading data:', error);
     }
   };
 

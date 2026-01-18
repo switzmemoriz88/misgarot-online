@@ -69,6 +69,8 @@ const EditorPage: React.FC = () => {
   const [landscapePreview, setLandscapePreview] = useState<string>('');
   const [portraitPreview, setPortraitPreview] = useState<string>('');
   const [orderThumbnail, setOrderThumbnail] = useState<string>('');
+  // Track if current frame is single-orientation only (no paired frame)
+  const [isSingleOrientationFrame, setIsSingleOrientationFrame] = useState(false);
   // const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab>('layers');
   
   // Auth context - for admin check
@@ -108,7 +110,15 @@ const EditorPage: React.FC = () => {
   });
 
   // Check for saved data on mount (skip for admin edit mode and Supabase frames)
+  // DISABLED: This prompt is confusing when switching between modes
+  // The session management handles state properly between landscape/portrait
   useEffect(() => {
+    // Always skip restore prompt - it causes confusion
+    // The design session handles state between landscape/portrait modes
+    console.log('⏭️ Restore prompt disabled - using session management instead');
+    return;
+    
+    /* Original code - disabled
     console.log('🔍 Restore prompt check:', { isAdminEdit, sourceFromUrl, templateId, frameIdFromUrl });
     
     // Skip restore prompt when admin is editing an existing frame
@@ -143,6 +153,7 @@ const EditorPage: React.FC = () => {
         setShowRestorePrompt(true);
       }
     }
+    */
   }, [hasSavedData, getSavedInfo, isAdminEdit, sourceFromUrl, templateId, frameIdFromUrl]);
 
   // Listen for Ctrl+S save event
@@ -330,6 +341,21 @@ const EditorPage: React.FC = () => {
       } else if (editorMode === 'portrait') {
         setCanvasSize(CANVAS_SIZES.portrait.width, CANVAS_SIZES.portrait.height);
         console.log('📐 Set canvas to PORTRAIT:', CANVAS_SIZES.portrait.width, 'x', CANVAS_SIZES.portrait.height);
+      }
+      setBackgroundType('none');
+      return;
+    }
+    
+    // NEW DESIGN: Clear canvas when starting from scratch (templateId === 'new')
+    if (templateId === 'new') {
+      console.log('🆕 Starting new design from scratch - clearing canvas');
+      clearSession();
+      clearCanvas();
+      clear(); // Clear AutoSave data too
+      if (editorMode === 'landscape') {
+        setCanvasSize(CANVAS_SIZES.landscape.width, CANVAS_SIZES.landscape.height);
+      } else if (editorMode === 'portrait') {
+        setCanvasSize(CANVAS_SIZES.portrait.width, CANVAS_SIZES.portrait.height);
       }
       setBackgroundType('none');
       return;
@@ -532,6 +558,25 @@ const EditorPage: React.FC = () => {
         console.log('   - DB orientation:', frame.orientation);
         console.log('   - Has paired_frame_id:', frame.paired_frame_id || 'none');
         
+        // IMPORTANT: If frame doesn't have a paired version for the current mode,
+        // redirect to the mode that matches the frame's orientation
+        if (!frame.paired_frame_id) {
+          // Mark this as a single-orientation frame (no mode switching allowed)
+          setIsSingleOrientationFrame(true);
+          console.log('⚠️ This is a single-orientation frame - mode switching disabled');
+          
+          const correctMode = frame.orientation === 'portrait' ? 'portrait' : 'landscape';
+          if (editorMode !== correctMode) {
+            console.log(`🔄 Frame is ${frame.orientation}-only, redirecting to ${correctMode} mode...`);
+            // Keep the same query params so this useEffect runs again after redirect
+            navigate(`/editor/${correctMode}?frameId=${frameIdFromUrl}&source=supabase`, { replace: true });
+            return;
+          }
+        } else {
+          // Has paired frame - mode switching is allowed
+          setIsSingleOrientationFrame(false);
+        }
+        
         // IMPORTANT: If we're in landscape mode but loaded a portrait frame,
         // we need to load its paired landscape frame instead
         if (editorMode === 'landscape' && frame.orientation === 'portrait' && frame.paired_frame_id) {
@@ -663,6 +708,11 @@ const EditorPage: React.FC = () => {
                   .map((el: any) => scaleFrameToCanvas(el, portraitSize));
                 console.log(`✅ Loaded paired portrait frame: ${portraitFrameElements.length} elements`);
               }
+            } else {
+              // No paired portrait frame - just leave portrait empty for now
+              // The user will need to manually set up portrait elements or use the same frame
+              console.log('⚠️ No paired portrait frame available');
+              // Keep portraitFrameElements empty - user can only work in landscape mode
             }
           } else {
             // This is a portrait frame - need to find/load the landscape pair
@@ -686,6 +736,11 @@ const EditorPage: React.FC = () => {
                   .map((el: any) => scaleFrameToCanvas(el, landscapeSize));
                 console.log(`✅ Loaded paired landscape frame: ${landscapeFrameElements.length} elements`);
               }
+            } else {
+              // No paired landscape frame - just leave landscape empty for now
+              // The user will need to manually set up landscape elements or use the same frame
+              console.log('⚠️ No paired landscape frame available');
+              // Keep landscapeFrameElements empty - user can only work in portrait mode
             }
           }
           
@@ -694,11 +749,24 @@ const EditorPage: React.FC = () => {
           console.log(`📦 Editable elements: ${editableElements.length}`);
           
           // Calculate portrait positions for editable elements from landscape
-          const portraitEditableElements = calculatePortraitFromLandscape(
-            editableElements,
-            landscapeSize,
-            portraitSize
-          );
+          // BUT: If the frame is portrait-only (no paired landscape), don't recalculate!
+          let portraitEditableElements: any[];
+          let landscapeEditableElements: any[];
+          
+          if (isLandscapeFrame) {
+            // Source is landscape - use original for landscape, calculate for portrait
+            landscapeEditableElements = editableElements;
+            portraitEditableElements = calculatePortraitFromLandscape(
+              editableElements,
+              landscapeSize,
+              portraitSize
+            );
+          } else {
+            // Source is portrait - use original for portrait, don't calculate (no landscape pair)
+            portraitEditableElements = editableElements;
+            landscapeEditableElements = []; // No landscape version available
+            console.log('📐 Portrait frame - using original element positions (no conversion)');
+          }
           
           // Build style object
           const style = {
@@ -711,10 +779,10 @@ const EditorPage: React.FC = () => {
           };
           
           // Save landscape design (frame + editable elements)
-          const landscapeAllElements = [...landscapeFrameElements, ...editableElements];
+          const landscapeAllElements = [...landscapeFrameElements, ...landscapeEditableElements];
           saveLandscapeDesign(landscapeAllElements, style, landscapeSize);
           
-          // Save portrait design (portrait frame + calculated editable elements)
+          // Save portrait design (portrait frame + editable elements)
           const portraitAllElements = [...portraitFrameElements, ...portraitEditableElements];
           savePortraitDesign(portraitAllElements, style, portraitSize);
           
@@ -748,7 +816,7 @@ const EditorPage: React.FC = () => {
     };
     
     loadSupabaseFrame();
-  }, [frameIdFromUrl, sourceFromUrl, clearCanvas, setCanvasSize, setBackgroundType, addElement, isAdminEdit, editorMode, saveLandscapeDesign, savePortraitDesign, calculatePortraitFromLandscape, clearSession]);
+  }, [frameIdFromUrl, sourceFromUrl, clearCanvas, setCanvasSize, setBackgroundType, addElement, isAdminEdit, editorMode, saveLandscapeDesign, savePortraitDesign, calculatePortraitFromLandscape, clearSession, navigate]);
 
   // Load order for editing (photographer editing existing order)
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -1263,7 +1331,7 @@ const EditorPage: React.FC = () => {
           .upload(fileName, blob, { contentType: 'image/png' });
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Upload timeout')), 5000)
+          setTimeout(() => reject(new Error('Upload timeout')), 15000)  // Increased to 15 seconds
         );
         
         try {
@@ -1273,9 +1341,11 @@ const EditorPage: React.FC = () => {
             const { data: urlData } = supabase.storage.from('frames').getPublicUrl(fileName);
             thumbnailUrl = urlData.publicUrl;
             console.log('✅ Thumbnail uploaded:', thumbnailUrl);
+          } else {
+            console.warn('⚠️ Upload error:', uploadError);
           }
         } catch (uploadErr) {
-          console.warn('⚠️ Upload failed/timeout, using data URL');
+          console.warn('⚠️ Upload failed/timeout, using data URL:', uploadErr);
         }
       } catch (err) {
         console.error('Failed to generate preview:', err);
@@ -1399,15 +1469,23 @@ const EditorPage: React.FC = () => {
         alert('🎉 מעולה! המסגרת פורסמה בשני הכיוונים (רוחב + אורך) ומקושרת!');
       }
       
+      // Navigate to categories after successful publish
+      navigate('/categories', { replace: true });
       return;
     }
 
     // ==========================================
-    // PORTRAIT MODE PUBLISH (or other modes)
+    // PORTRAIT MODE PUBLISH - יוצר גם landscape אוטומטית
     // ==========================================
-    console.log('📏 Publishing from PORTRAIT/OTHER mode');
+    console.log('📏 Publishing from PORTRAIT mode');
+    console.log('📋 Data received:', { name: data.name, categoryId: data.categoryId, orientation: data.orientation });
     
-    const designData = {
+    // Extract only locked elements for landscape (the frame itself)
+    const lockedElements = elements.filter(el => el.isLocked);
+    console.log('🔒 Locked elements for landscape:', lockedElements.length);
+    
+    // Full portrait design data (all elements)
+    const portraitDesignData = {
       elements,
       canvasWidth,
       canvasHeight,
@@ -1415,12 +1493,39 @@ const EditorPage: React.FC = () => {
       backgroundType,
       gradientColors,
     };
+    
+    console.log('📦 Portrait design data prepared, elements count:', elements.length);
 
-    // Determine paired frame
-    const pairedFrameId = data.pairedFrameId || null;
+    // Landscape design data - only locked elements (the frame)
+    // Calculate landscape positions for locked elements
+    const landscapeWidth = 2500;
+    const landscapeHeight = 1875;
+    const scaleX = landscapeWidth / canvasWidth;
+    const scaleY = landscapeHeight / canvasHeight;
+    const avgScale = (scaleX + scaleY) / 2;
+    
+    const landscapeElements = lockedElements.map(el => ({
+      ...el,
+      x: (el.x || 0) * scaleX,
+      y: (el.y || 0) * scaleY,
+      width: el.width ? el.width * avgScale : undefined,
+      height: el.height ? el.height * avgScale : undefined,
+      fontSize: el.type === 'text' && el.fontSize ? Math.round(el.fontSize * avgScale) : undefined,
+    }));
+    
+    const landscapeDesignData = {
+      elements: landscapeElements,
+      canvasWidth: landscapeWidth,
+      canvasHeight: landscapeHeight,
+      backgroundColor,
+      backgroundType,
+      gradientColors,
+    };
 
+    // 1. Publish PORTRAIT frame first
+    console.log('📝 Publishing portrait frame...');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newFrame, error } = await (supabase as any)
+    const { data: portraitFrame, error: portraitError } = await (supabase as any)
       .from('frames')
       .insert({
         name: data.name,
@@ -1433,34 +1538,62 @@ const EditorPage: React.FC = () => {
         preview_url: thumbnailUrl.startsWith('data:') ? null : thumbnailUrl,
         width: canvasWidth,
         height: canvasHeight,
-        orientation: data.orientation,
-        paired_frame_id: pairedFrameId,
-        design_data: designData,
+        orientation: 'portrait',
+        design_data: portraitDesignData,
         usage_count: 0,
       })
       .select('id')
       .single();
 
-    if (error) {
-      console.error('❌ Error publishing frame:', error);
-      alert(`❌ שגיאה בפרסום: ${error.message}`);
-      throw new Error(error.message);
+    if (portraitError) {
+      console.error('❌ Error publishing portrait:', portraitError);
+      throw new Error(portraitError.message);
     }
+    
+    console.log('✅ Portrait published:', portraitFrame.id);
 
-    console.log('✅ Frame published successfully:', newFrame);
+    // 2. Publish LANDSCAPE frame (with only locked elements)
+    console.log('📝 Publishing landscape frame (locked elements only)...');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: landscapeFrame, error: landscapeError } = await (supabase as any)
+      .from('frames')
+      .insert({
+        name: data.name,
+        name_en: data.nameEn,
+        category_id: data.categoryId,
+        is_premium: data.isPremium,
+        is_active: true,
+        thumbnail_url: null, // Landscape thumbnail would need separate generation
+        width: landscapeWidth,
+        height: landscapeHeight,
+        orientation: 'landscape',
+        paired_frame_id: portraitFrame.id,
+        design_data: landscapeDesignData,
+        usage_count: 0,
+      })
+      .select('id')
+      .single();
 
-    // If paired with another frame, update that frame's paired_frame_id
-    if (pairedFrameId && newFrame?.id) {
+    if (landscapeError) {
+      console.error('❌ Error publishing landscape:', landscapeError);
+      // Don't throw, portrait is already published
+      alert('⚠️ מסגרת אורך פורסמה, אך יצירת מסגרת רוחב נכשלה');
+    } else {
+      console.log('✅ Landscape published:', landscapeFrame.id);
+      
+      // 3. Link portrait to landscape
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from('frames')
-        .update({ paired_frame_id: newFrame.id })
-        .eq('id', pairedFrameId);
-        
-      alert('🎉 המסגרות פורסמו וקושרו בהצלחה!');
-    } else {
-      alert('✅ המסגרת פורסמה בהצלחה!');
+        .update({ paired_frame_id: landscapeFrame.id })
+        .eq('id', portraitFrame.id);
+      
+      console.log('🔗 Frames linked!');
+      alert('🎉 מעולה! המסגרת פורסמה בשני הכיוונים (אורך + רוחב) ומקושרת!');
     }
+    
+    // Navigate to categories after successful publish
+    navigate('/categories', { replace: true });
   };
 
   // Handle UPDATE existing frame (Admin only)
@@ -1556,15 +1689,28 @@ const EditorPage: React.FC = () => {
           <div className="flex items-center gap-3">
             {/* Back button based on mode */}
             {editorMode === 'portrait' ? (
-              <button
-                onClick={handleBackToLandscape}
-                className="flex items-center gap-1.5 px-2 py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-all group"
-              >
-                <svg className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span className="text-sm font-medium">חזור לרוחב</span>
-              </button>
+              isSingleOrientationFrame ? (
+                // For single-orientation frames, go back to gallery instead
+                <button
+                  onClick={handleBackToGallery}
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all group"
+                >
+                  <svg className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span className="hidden sm:inline text-sm font-medium">גלריה</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleBackToLandscape}
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-all group"
+                >
+                  <svg className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span className="text-sm font-medium">חזור לרוחב</span>
+                </button>
+              )
             ) : editorMode === 'landscape' ? (
               <button
                 onClick={handleBackToGallery}
@@ -1597,23 +1743,34 @@ const EditorPage: React.FC = () => {
           {/* Center - Flow Progress */}
           {editorMode !== 'custom' && (
             <div className="flex items-center gap-2">
+              {/* Single orientation warning */}
+              {isSingleOrientationFrame && (
+                <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-medium border border-amber-200">
+                  <span>⚠️</span>
+                  <span>מסגרת {editorMode === 'portrait' ? 'אורך' : 'רוחב'} בלבד</span>
+                </div>
+              )}
+              
               {/* Flow Steps - Desktop - CLICKABLE */}
               <div className="hidden md:flex items-center gap-2 bg-gray-50 rounded-full px-3 py-1.5">
-                {/* Step 1 - Landscape - Clickable */}
+                {/* Step 1 - Landscape - Clickable (disabled for portrait-only frames) */}
                 <button
                   onClick={() => {
-                    if (editorMode === 'portrait') {
+                    if (editorMode === 'portrait' && !isSingleOrientationFrame) {
                       handleBackToLandscape();
                     }
                   }}
-                  disabled={editorMode === 'landscape'}
+                  disabled={editorMode === 'landscape' || isSingleOrientationFrame}
+                  title={isSingleOrientationFrame ? 'מסגרת זו זמינה רק במצב אורך' : ''}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     editorMode === 'landscape' 
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white cursor-default' 
-                      : 'bg-green-500 text-white hover:bg-green-600 cursor-pointer hover:shadow-md'
+                      : isSingleOrientationFrame
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600 cursor-pointer hover:shadow-md'
                   }`}
                 >
-                  <span>{editorMode === 'portrait' ? '✓' : '🖼️'}</span>
+                  <span>{editorMode === 'portrait' && !isSingleOrientationFrame ? '✓' : '🖼️'}</span>
                   <span>רוחב</span>
                 </button>
                 
@@ -1657,21 +1814,27 @@ const EditorPage: React.FC = () => {
               {/* Current Mode Badge - Mobile - Also Clickable */}
               <div className="md:hidden flex items-center gap-1 bg-gray-50 rounded-full p-1">
                 <button
-                  onClick={() => editorMode === 'portrait' && handleBackToLandscape()}
+                  onClick={() => editorMode === 'portrait' && !isSingleOrientationFrame && handleBackToLandscape()}
+                  disabled={isSingleOrientationFrame}
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all ${
                     editorMode === 'landscape' 
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white' 
-                      : 'text-gray-500 hover:bg-gray-200'
+                      : isSingleOrientationFrame
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-500 hover:bg-gray-200'
                   }`}
                 >
                   <span>🖼️</span>
                 </button>
                 <button
-                  onClick={() => editorMode === 'landscape' && handleContinueToPortrait()}
+                  onClick={() => editorMode === 'landscape' && !isSingleOrientationFrame && handleContinueToPortrait()}
+                  disabled={isSingleOrientationFrame}
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all ${
                     editorMode === 'portrait' 
                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
-                      : 'text-gray-500 hover:bg-gray-200'
+                      : isSingleOrientationFrame
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-500 hover:bg-gray-200'
                   }`}
                 >
                   <span>📱</span>
